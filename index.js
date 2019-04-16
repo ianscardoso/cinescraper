@@ -1,26 +1,43 @@
-// node_modules
 const Nightmare = require('nightmare');
 const cheerio = require('cheerio');
 const nodemailer = require('nodemailer');
 const config = require('./config.js');
 
 const nightmare = Nightmare({ show: false });
-const url = 'https://www.cinepolis.com.br/programacao/ribeirao+preto/30.html';
-let $;
-let movies = [];
 
 function scrap() {
+    // 30 = Cinépolis Iguatemi Ribeirão Preto              
+    const url = 'https://www.cinepolis.com.br/programacao/ribeirao+preto/30.html'; // /city/movie_theater_id
+
     nightmare
         .goto(url)
         .wait('#programacao_cinepolis')
         .evaluate(() => document.querySelector('#programacao_cinepolis').innerHTML)
         .end()
         .then(response => {
+            let $;
+            let movies = [];
+
             $ = cheerio.load(response);
+
+            // each movie in theater on that date
             $('.tituloPelicula').each((i, movie) => {
                 let sessions = [];
-                $(movie).find($('time', '.horarioExp')).each((i, time) => {
-                    sessions.push($(time).attr('alt'));
+
+                // each type of session the movie has, e.g. "3D LEG", "DUB" etc
+                $(movie).find($('.horarioExp')).each((i, session) => {
+
+                    // get the times in wich the movie is playing on a type of session
+                    let times = [];
+                    $('time', session).each((i, time) => {
+                        times.push($(time).attr('alt'));
+                    })
+
+                    sessions.push({
+                        // get the type of session
+                        type: $(session).find($('span', 'p')).text().trim(),
+                        times: times
+                    })
                 })
 
                 movies.push({
@@ -30,30 +47,28 @@ function scrap() {
                 })
             })
 
-            text(movies);
-
-            return true;
+            sendMail(movies);
         })
         .catch(error => {
             console.log(error);
-
-            return false;
         });
 }
 
-function sendMail(text) {
+function sendMail(movies) {
+    let text = getText(movies);
+
     let transporter = nodemailer.createTransport({
         service: 'outlook',
         auth: {
             user: `${config.emailUser}`,
-            pass: `${config.emailPassword}` 
+            pass: `${config.emailPassword}`
         }
     });
 
     let mailOptions = {
         from: `${config.emailUser}`,
-        to: 'ianscardoso@hotmail.com',
-        subject: 'Filmes de hoje',
+        to: config.recipient,
+        subject: 'Movies in Theater',
         text: `${text}`
     }
 
@@ -65,16 +80,24 @@ function sendMail(text) {
     })
 }
 
-function text(movieList) {
-    let text = 'Filmes no Cinépolis:\n\n';
+function getText(movieList) {
+    let text = 'Movies playing at Cinépolis Iguatemi:\n\n';
 
     movieList.forEach(movie => {
-        text += `\nTítulo: ${movie.title}
-        Duração: ${movie.duration}
-        Horários: ${movie.sessions}\n`
+        text += `\nTitle: ${movie.title}
+        Duration: ${movie.duration}
+        Sessions:\n`;
+
+        movie.sessions.forEach(session => {
+            let type = session.type.replace(/\n| +/g, ' ');
+
+            text +=
+            `Type: ${type}
+             Times: ${session.times}\n`;
+        })
     });
 
-    sendMail(text);
+    return text;
 }
 
 scrap();
