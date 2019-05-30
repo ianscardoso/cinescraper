@@ -1,5 +1,5 @@
 # Cinescraper
-A web scraper to get information about movies playing on my favorite movie theater and send to me via email
+A web scraper to get information about movies playing on my favorite movie theater and send to me via e-mail.
 
 # How I use it
 It's a little lazy, but I set a task with Windows Task Scheduler to run the index.js file with Node every saturday morning, wich is the day 
